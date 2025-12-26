@@ -25,11 +25,22 @@ app.get("/protected", authenticate, (req, res) => {
 
 ### How it works
 
-1. Extracts the JWT token from the `Authorization` header
-2. Supports "Bearer " prefix (e.g., "Bearer your-token-here")
-3. Verifies the token using the `JWT_SECRET` environment variable
-4. Sets `req.user` with the decoded token payload
-5. Returns 401 status for missing or invalid tokens
+1. Validates JWT_SECRET configuration is present
+2. Extracts the JWT token from the `Authorization` header with Bearer prefix
+3. Validates token format (proper JWT structure with 3 segments)
+4. Verifies the token using `JWT_SECRET` with explicit algorithm specification
+5. Sets `req.user` with the decoded token payload
+6. Returns structured JSON error responses with appropriate status codes
+7. Provides detailed server-side logging while keeping client errors generic
+
+### Security Features
+
+- **Algorithm Whitelisting**: Explicitly specifies allowed JWT algorithms (HS256, HS384, HS512) to prevent "none" algorithm attacks
+- **Input Validation**: Validates Authorization header format and JWT structure before processing
+- **Configuration Validation**: Ensures JWT_SECRET is configured before processing requests
+- **Secure Error Handling**: Generic error messages to clients, detailed logging for debugging
+- **Token Format Validation**: Checks for proper Bearer prefix and JWT structure
+- **Expiration Handling**: Built-in support for token expiration via jsonwebtoken library
 
 ### Environment Variables
 
@@ -58,4 +69,23 @@ To test the protected endpoint, include the JWT token in the Authorization heade
 ```bash
 curl -H "Authorization: Bearer your-jwt-token" http://localhost:3000/protected
 ```
-# jwt-auth-example
+
+## Generating Tokens
+
+The module now exports a `generateToken` utility function for creating JWT tokens:
+
+```javascript
+const { generateToken } = require("./auth");
+
+// Generate a token with 1 hour expiration
+const token = generateToken({ userId: 123, role: "user" }, "1h");
+
+// Generate a token with custom expiration
+const longToken = generateToken({ userId: 456 }, "7d");
+```
+
+## Module Exports
+
+- `authenticate` - Express middleware for JWT authentication
+- `generateToken` - Utility function to create JWT tokens
+- `AUTH_CONFIG` - Configuration constants (algorithms, error messages, etc.)
