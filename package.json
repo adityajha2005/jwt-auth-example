@@ -1,18 +1,28 @@
 {
-  "name": "jwt-auth-example",
+  "name": "legacy-code-agent",
   "version": "1.0.0",
-  "description": "JWT authentication example",
-  "main": "auth.js",
+  "description": "Remote Agent for Legacy Code Survival - AI-powered code analysis with file citations",
+  "main": "app.js",
   "dependencies": {
+    "adm-zip": "^0.5.16",
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^4.18.0",
-    "jsonwebtoken": "^9.0.0"
+    "jsonwebtoken": "^9.0.0",
+    "mongodb": "^7.0.0",
+    "multer": "^2.0.2"
   },
-  "devDependencies": {},
   "scripts": {
-    "start": "node server.js",
+    "start": "node app.js",
+    "dev": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["jwt", "authentication", "express"],
+  "keywords": [
+    "jwt",
+    "authentication",
+    "express"
+  ],
   "author": "",
   "license": "ISC"
 }

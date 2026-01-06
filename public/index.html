@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Legacy Code Agent - Code Survival Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .citation-highlight {
+      background: linear-gradient(120deg, #fef3c7 0%, #fde68a 100%);
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+    
+    .code-line {
+      font-family: 'Courier New', monospace;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+    
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .upload-zone {
+      border: 2px dashed #cbd5e0;
+      transition: all 0.3s ease;
+    }
+    
+    .upload-zone:hover {
+      border-color: #667eea;
+      background-color: #f7fafc;
+    }
+    
+    .upload-zone.dragging {
+      border-color: #667eea;
+      background-color: #edf2f7;
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      const [repositories, setRepositories] = useState([]);
+      const [selectedRepo, setSelectedRepo] = useState(null);
+      const [question, setQuestion] = useState('');
+      const [answer, setAnswer] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [uploading, setUploading] = useState(false);
+      const [dragging, setDragging] = useState(false);
+
+      useEffect(() => {
+        fetchRepositories();
+      }, []);
+
+      const fetchRepositories = async () => {
+        try {
+          const response = await fetch('/api/repositories');
+          const data = await response.json();
+          setRepositories(data.repositories);
+        } catch (error) {
+          console.error('Failed to fetch repositories:', error);
+        }
+      };
+
+      const handleFileUpload = async (file) => {
+        if (!file || !file.name.endsWith('.zip')) {
+          alert('Please upload a ZIP file');
+          return;
+        }
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('repository', file);
+        formData.append('name', file.name.replace('.zip', ''));
+
+        try {
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+          });
+
+          const data = await response.json();
+          
+          if (data.success) {
+            alert(`Repository uploaded successfully! ${data.repository.fileCount} files processed.`);
+            fetchRepositories();
+          } else {
+            alert('Upload failed: ' + (data.error || 'Unknown error'));
+          }
+        } catch (error) {
+          console.error('Upload error:', error);
+          alert('Failed to upload repository');
+        } finally {
+          setUploading(false);
+        }
+      };
+
+      const handleDrop = (e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files[0];
+        handleFileUpload(file);
+      };
+
+      const handleDragOver = (e) => {
+        e.preventDefault();
+        setDragging(true);
+      };
+
+      const handleDragLeave = () => {
+        setDragging(false);
+      };
+
+      const handleAskQuestion = async () => {
+        if (!selectedRepo || !question.trim()) {
+          alert('Please select a repository and enter a question');
+          return;
+        }
+
+        setLoading(true);
+        setAnswer(null);
+
+        try {
+          const response = await fetch('/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              repositoryId: selectedRepo._id,
+              question: question
+            })
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            setAnswer(data);
+          } else {
+            alert('Query failed: ' + (data.error || 'Unknown error'));
+          }
+        } catch (error) {
+          console.error('Query error:', error);
+          alert('Failed to process question');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const exampleQuestions = [
+        "Why is auth failing for EU users?",
+        "Where is rate limiting implemented?",
+        "What breaks if I remove Redis?"
+      ];
+
+      return (
+        <div className="min-h-screen">
+          {/* Header */}
+          <div className="gradient-bg text-white py-12 px-4">
+            <div className="max-w-6xl mx-auto">
+              <h1 className="text-4xl font-bold mb-3">Legacy Code Agent</h1>
+              <p className="text-xl text-purple-100">Your AI assistant for understanding legacy codebases</p>
+            </div>
+          </div>
+
+          <div className="max-w-6xl mx-auto px-4 py-8">
+            {/* Upload Section */}
+            <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+              <h2 className="text-2xl font-semibold mb-4 text-gray-800">Upload Repository</h2>
+              
+              <div
+                className={`upload-zone rounded-lg p-12 text-center ${dragging ? 'dragging' : ''}`}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
+                <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                
+                <p className="text-lg text-gray-600 mb-2">
+                  {uploading ? 'Uploading and processing...' : 'Drag and drop your repository ZIP file here'}
+                </p>
+                <p className="text-sm text-gray-500 mb-4">or</p>
+                
+                <label className="inline-block">
+                  <input
+                    type="file"
+                    accept=".zip"
+                    onChange={(e) => handleFileUpload(e.target.files[0])}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                  <span className="bg-purple-600 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-purple-700 transition inline-block">
+                    {uploading ? 'Processing...' : 'Choose File'}
+                  </span>
+                </label>
+              </div>
+
+              {/* Repository List */}
+              {repositories.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-3 text-gray-700">Your Repositories</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {repositories.map((repo) => (
+                      <div
+                        key={repo._id}
+                        onClick={() => setSelectedRepo(repo)}
+                        className={`p-4 border-2 rounded-lg cursor-pointer transition ${
+                          selectedRepo?._id === repo._id
+                            ? 'border-purple-600 bg-purple-50'
+                            : 'border-gray-200 hover:border-purple-300'
+                        }`}
+                      >
+                        <h4 className="font-semibold text-gray-800 mb-1">{repo.name}</h4>
+                        <p className="text-sm text-gray-600">{repo.fileCount || 0} files</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(repo.uploadedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Question Section */}
+            {selectedRepo && (
+              <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+                <h2 className="text-2xl font-semibold mb-4 text-gray-800">Ask a Question</h2>
+                
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-2">Selected: <span className="font-semibold">{selectedRepo.name}</span></p>
+                </div>
+
+                <textarea
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="Ask anything about the codebase..."
+                  className="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-purple-600 focus:outline-none mb-4"
+                  rows="4"
+                />
+
+                <button
+                  onClick={handleAskQuestion}
+                  disabled={loading || !question.trim()}
+                  className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+                >
+                  {loading ? 'Analyzing...' : 'Ask Question'}
+                </button>
+
+                {/* Example Questions */}
+                <div className="mt-6">
+                  <p className="text-sm text-gray-600 mb-2">Example questions:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {exampleQuestions.map((q, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setQuestion(q)}
+                        className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full transition"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Answer Section */}
+            {answer && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-2xl font-semibold mb-4 text-gray-800">Answer</h2>
+                
+                <div className="prose max-w-none mb-6">
+                  <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+                    {answer.answer}
+                  </div>
+                </div>
+
+                {/* Citations */}
+                {answer.citations && answer.citations.length > 0 && (
+                  <div className="border-t pt-6">
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800">
+                      File References ({answer.citations.length})
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {answer.citations.map((citation, idx) => (
+                        <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="citation-highlight font-semibold">
+                              {citation.file}:{citation.lineNumber}
+                            </span>
+                            <span className="text-xs text-gray-500">Line {citation.lineNumber}</span>
+                          </div>
+                          <pre className="code-line bg-white p-3 rounded border border-gray-200 overflow-x-auto">
+                            <code className="text-gray-800">{citation.content}</code>
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Confidence */}
+                <div className="mt-6 flex items-center">
+                  <span className="text-sm text-gray-600 mr-2">Confidence:</span>
+                  <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-xs">
+                    <div
+                      className="bg-purple-600 h-2 rounded-full transition-all"
+                      style={{ width: `${(answer.confidence || 0) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-sm text-gray-600 ml-2">
+                    {Math.round((answer.confidence || 0) * 100)}%
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {repositories.length === 0 && !uploading && (
+              <div className="text-center py-12">
+                <svg className="mx-auto h-24 w-24 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                <h3 className="text-xl font-semibold text-gray-600 mb-2">No repositories yet</h3>
+                <p className="text-gray-500">Upload your first repository to get started</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <footer className="bg-gray-800 text-white py-6 mt-12">
+            <div className="max-w-6xl mx-auto px-4 text-center">
+              <p className="text-gray-400">Legacy Code Agent - Powered by AI</p>
+              <p className="text-sm text-gray-500 mt-2">All answers include file references with line numbers</p>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
